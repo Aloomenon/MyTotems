@@ -1,0 +1,6 @@
+## Interface: 30300
+## Title : MyTotems
+## Notes: Makes your totems customizable with tick timers
+## Author: Aloomenon
+
+MyTotems.lua
