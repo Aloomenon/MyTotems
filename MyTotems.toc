@@ -1,4 +1,5 @@
 ## Interface: 30300
+## Version: 1.0.0
 ## Title : MyTotems
 ## Notes: Makes your totems customizable with tick timers
 ## Author: Aloomenon
