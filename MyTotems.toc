@@ -1,7 +1,7 @@
 ## Interface: 30300
 ## Version: 1.0.0
 ## Title : MyTotems
-## Notes: Makes your totems customizable with tick timers
+## Notes: Extend you blizz totem frames. Removing border and make it pulse.
 ## Author: Aloomenon
 
 MyTotems.lua
