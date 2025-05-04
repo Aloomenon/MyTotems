@@ -27,10 +27,6 @@ function MyTotemsFrame:GetTotemInfo()
     return totemInfo
 end
 
-local function BoolToOptValue(option)
-    return option and 1 or nil
-end
-
 local function CreateTextFrame(label, parent)
     local text = parent:CreateFontString(nil, "OVERLAY")
     text:SetFont("fonts/frizqt__.ttf", 12)
