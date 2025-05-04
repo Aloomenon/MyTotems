@@ -1,16 +1,43 @@
-local MyTotemsFrame = CreateFrame("Frame", "MyTotems")
+MyTotemsFrame = CreateFrame("Frame", "MyTotems")
 
-local PULSE_DURATIONS = {
-    ["Tremor Totem"] = 3,
-    ["Earthbind Totem"] = 3,
-    ["Cleansing Totem"] = 3,
-    ["Searing Totem"] = 2.2, -- scaling from haste ?
-    ["Magma Totem"] = 2,
-    ["Healing Stream Totem"] = 2,
-    ["Stoneclaw Totem"] = 2
+local addonEnabled = false
+
+function MyTotemsFrame:OnEvent(event, addOnName)
+    if addOnName == "MyTotems" then
+        if MyTotems_DB == nil then
+            MyTotems_DB = CopyTable(MyTotemsFrame:GetDefaults())
+        end
+        self.db = MyTotems_DB
+        self:InitOptions()
+        self:Init()
+        self:UnregisterEvent(event)
+    end
+end
+
+MyTotemsFrame:SetScript("OnEvent", MyTotemsFrame.OnEvent)
+MyTotemsFrame:RegisterEvent("ADDON_LOADED")
+
+local TOTEM_INFO = {
+    ["Tremor Totem"] = {duration = 3, slot = 2, flag = function() return MyTotemsFrame.db.tremorPulse end},
+    ["Earthbind Totem"] = {duration = 3, slot = 2, flag = function() return MyTotemsFrame.db.earthBindPulse end},
+    ["Cleansing Totem"] = {duration = 3, slot = 3, flag = function() return MyTotemsFrame.db.cleansingPulse end},
+    ["Searing Totem"] = {duration = 2.2, slot = 1, flag = function() return MyTotemsFrame.db.searingPulse end}, -- scaling by haste ?
+    ["Magma Totem"] = {duration = 2, slot = 1, flag = function() return MyTotemsFrame.db.magmaPulse end},
+    ["Healing Stream Totem"] = {duration = 2, slot = 2, flag = function() return MyTotemsFrame.db.healingPulse end},
+    ["Stoneclaw Totem"] = {duration = 3, slot = 2, flag = function() return MyTotemsFrame.db.stoneclawPulse end}
 }
 
-local function RemoveBackgroundWithBorder()
+function MyTotemsFrame:UpdateBorders()
+    local removeBorders = self.db.removeBorders
+    print(self.db, self.db.removeBorders)
+    local function UpdateBorder(frame)
+        if removeBorders then
+            frame:Hide()
+        else
+            frame:Show()
+        end
+    end
+
     local totem1, totem2, totem3, totem4 = TotemFrame:GetChildren()
     for i, totemFrame in ipairs({totem1, totem2, totem3, totem4}) do
         local frameIcon, overlayFrame = totemFrame:GetChildren()
@@ -18,16 +45,18 @@ local function RemoveBackgroundWithBorder()
         if overlayFrame:GetFrameLevel() < frameIcon:GetFrameLevel() then
             overlayFrame = frameIcon
         end
-
-        overlayFrame:Hide()
+        UpdateBorder(overlayFrame)
 
         local frBackground = _G[totemFrame:GetName()..'Background']
-        frBackground:Hide()
+        UpdateBorder(frBackground)
     end
 end
 
-if UnitClass("player") == "Shaman" then
-    RemoveBackgroundWithBorder()
+function MyTotemsFrame:Init()
+    if UnitClass("player") == "Shaman" then
+        addonEnabled = true
+        self:UpdateBorders()
+    end
 end
 
 local function RemoveTotemRank(totemName)
@@ -35,13 +64,9 @@ local function RemoveTotemRank(totemName)
     return string.sub(totemName, 0, n)
 end
 
-local function GetPulseDuration(cdButton)
-    local _, totemName, _, duration = GetTotemInfo(cdButton:GetParent():GetParent().slot)
-    local data_dur = PULSE_DURATIONS[RemoveTotemRank(totemName)]
-    if data_dur ~= nil then
-        return data_dur, true
-    end
-    return duration, false
+local function GetTotemData(cdButton)
+    local _, totemName, startTime, duration = GetTotemInfo(cdButton:GetParent():GetParent().slot)
+    return totemName, startTime, duration
 end
 
 local function SetCooldown(frame, pulseTime, duration)
@@ -50,11 +75,49 @@ local function SetCooldown(frame, pulseTime, duration)
 end
 
 local function CooldownOnUpdate(cdButton, elapsed)
-    local nextPulseTime = GetTime()
-    local duration, extended = GetPulseDuration(cdButton)
-    if extended and cdButton.lastPulse + duration <= nextPulseTime then
-        SetCooldown(cdButton, nextPulseTime, duration)
+    local totemName, startTime, duration = GetTotemData(cdButton)
+    local info = TOTEM_INFO[RemoveTotemRank(totemName)]
+
+    if info ~= nil and info.flag() then
+        duration = info.duration
+        startTime = GetTime()
+    else
+        cdButton:SetScript("OnUpdate", nil)
+        cdButton.lastPulse = 0
     end
+    
+    if cdButton.lastPulse + duration <= startTime then
+        SetCooldown(cdButton, startTime, duration)
+    end
+end
+
+local function InitCooldown(button)
+    button.lastPulse = 0
+    button.startTime = GetTime()
+    CooldownOnUpdate(button)
+end
+
+local function GetButtonBySlot(slot)
+    local buttonNum
+    if slot == 1 then
+        buttonNum = 2
+    elseif slot == 2 then
+        buttonNum = 1
+    else
+        buttonNum = slot
+    end
+    return _G["TotemFrameTotem"..buttonNum.."IconCooldown"]
+end
+
+function MyTotemsFrame:LaunchCooldownByOption(totemName, optValue)
+    local info = TOTEM_INFO[totemName]
+    local cdButton = GetButtonBySlot(info.slot)
+    local _, _, startTime, duration = GetTotemInfo(info.slot)
+    local lastPulseTime = GetTime() - ((GetTime() - (cdButton.startTime or startTime)) % info.duration)
+    
+    SetCooldown(cdButton, lastPulseTime, info.duration)
+    cdButton:SetScript("OnUpdate", CooldownOnUpdate)
+    
 end
 
 function TotemButton_Update(button, startTime, duration, icon)
@@ -63,14 +126,12 @@ function TotemButton_Update(button, startTime, duration, icon)
 	local buttonDuration = _G[buttonName.."Duration"]
 	local buttonCooldown = _G[buttonName.."IconCooldown"]
 	if ( duration > 0 ) then
-        local pulseDuration, extended = GetPulseDuration(buttonCooldown)
 		buttonIcon:SetTexture(icon)
 		buttonIcon:Show()
-        SetCooldown(buttonCooldown, GetTime(), pulseDuration)
-        buttonCooldown:SetScript("OnUpdate", CooldownOnUpdate)
+        InitCooldown(buttonCooldown)
 		buttonCooldown:Show()
-		button:SetScript("OnUpdate", TotemButton_OnUpdate)
-		button:Show()
+        button:SetScript("OnUpdate", TotemButton_OnUpdate)
+        button:Show()
 	else
 		buttonIcon:Hide()
 		buttonDuration:Hide()

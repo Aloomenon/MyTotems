@@ -1,7 +1,9 @@
 ## Interface: 30300
 ## Version: 1.0.0
 ## Title : MyTotems
-## Notes: Extend you blizz totem frames. Removing border and make it pulse.
+## Notes: Extend blizz totem frames. Remove border and make it pulse.
 ## Author: Aloomenon
+## SavedVariables: MyTotems_DB
 
 MyTotems.lua
+MyTotemsOptions.lua
